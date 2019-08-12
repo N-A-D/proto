@@ -101,7 +101,7 @@ namespace proto {
 		scoped_connection& operator=(scoped_connection&&) = default;
 
 		~scoped_connection() {
-			disconnect();
+			close();
 		}
 
 		operator bool() const {
@@ -112,7 +112,7 @@ namespace proto {
 			return m_conn.valid();
 		}
 
-		void disconnect() const {
+		void close() const {
 			m_conn.close();
 		}
 
