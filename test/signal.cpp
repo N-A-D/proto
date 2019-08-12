@@ -72,6 +72,38 @@ TEST(SignalTests, SignalConnectionTests) {
 	ASSERT_EQ(signal.size(), 1);
 }
 
+TEST(SignalTests, SignalClearTest) {
+	DummyReceiver0 dummy0;
+	DummyReceiver1 dummy1;
+	proto::signal<void(bool)> signal;
+	ASSERT_TRUE(signal.empty());
+
+	auto conn0 = signal.connect(&dummy0, &DummyReceiver0::function0);
+	auto conn1 = signal.connect(&dummy0, &DummyReceiver0::function1);
+	auto conn2 = signal.connect(&dummy1, &DummyReceiver1::function0);
+	auto conn3 = signal.connect(&dummy1, &DummyReceiver1::function1);
+	auto conn4 = signal.connect([](bool x) { ASSERT_TRUE(x); });
+
+	ASSERT_TRUE(conn0);
+	ASSERT_TRUE(conn1);
+	ASSERT_TRUE(conn2);
+	ASSERT_TRUE(conn3);
+	ASSERT_TRUE(conn4);
+
+	ASSERT_FALSE(signal.empty());
+	ASSERT_EQ(signal.size(), 5);
+
+	signal.clear();
+
+	ASSERT_TRUE(signal.empty());
+
+	ASSERT_FALSE(conn0);
+	ASSERT_FALSE(conn1);
+	ASSERT_FALSE(conn2);
+	ASSERT_FALSE(conn3);
+	ASSERT_FALSE(conn4);
+}
+
 TEST(SignalTests, SignalEmissionTests) {
 
 	DummyReceiver0 dummy_receiver0;
