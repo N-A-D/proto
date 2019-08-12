@@ -14,4 +14,4 @@ without having to configure anything.
 
 ### Summary
 - Single-header C++17 signals and slots library
-- I learned about the Observer pattern
+- Learned about the [Observer pattern](https://en.wikipedia.org/wiki/Observer_pattern)
