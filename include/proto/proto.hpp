@@ -169,7 +169,6 @@ namespace proto {
 			std::shared_ptr<socket_base> m_socket;
 		};
 
-
 		class noncopyable {
 		public:
 			noncopyable(const noncopyable&) = delete;
@@ -227,14 +226,14 @@ namespace proto {
 		}
 
 		// invokes each slot attached to *this
-		void operator()(Args... args) {
-			emit(args...);
+		void operator()(Args&&... args) {
+			emit(std::forward<Args>(args)...);
 		}
 
 		// invokes each slot attached to *this
-		void emit(Args... args) {
+		void emit(Args&&... args) {
 			for (auto&[_, slot] : m_slots)
-				slot(args...);
+				slot(std::forward<Args>(args)...);
 		}
 
 		// returns the number of slots attached to *this
