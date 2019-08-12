@@ -16,8 +16,8 @@ namespace proto {
 	namespace detail {
 		struct socket_base {
 			virtual ~socket_base() = default;
-			virtual bool connected() const = 0;
-			virtual void disconnect() const = 0;
+			virtual bool valid() const = 0;
+			virtual void close() const = 0;
 		};
 
 		template <class Callable>
@@ -27,13 +27,13 @@ namespace proto {
 				: m_slot_id(slot_id)
 				, m_signal(signal) {}
 
-			bool connected() const override {
-				return m_signal && m_signal->connected(m_slot_id);
+			bool valid() const override {
+				return m_signal && m_signal->contains(m_slot_id);
 			}
 
-			void disconnect() const override {
-				assert(connected());
-				m_signal->disconnect(m_slot_id);
+			void close() const override {
+				assert(valid());
+				m_signal->remove(m_slot_id);
 			}
 
 		private:
@@ -56,18 +56,18 @@ namespace proto {
 		connection& operator=(connection&&) = default;
 
 		operator bool() const {
-			return connected();
+			return valid();
 		}
 
-		bool connected() const {
+		bool valid() const {
 			std::shared_ptr<detail::socket_base> socket(m_socket.lock());
-			return socket && socket->connected();
+			return socket && socket->valid();
 		}
 
-		void disconnect() const {
+		void close() const {
 			std::shared_ptr<detail::socket_base> socket(m_socket.lock());
 			if (socket)
-				socket->disconnect();
+				socket->close();
 		}
 
 		bool operator==(const connection& other) const {
@@ -105,15 +105,15 @@ namespace proto {
 		}
 
 		operator bool() const {
-			return connected();
+			return valid();
 		}
 
-		bool connected() const {
-			return m_conn.connected();
+		bool valid() const {
+			return m_conn.valid();
 		}
 
 		void disconnect() const {
-			m_conn.disconnect();
+			m_conn.close();
 		}
 
 		bool operator==(const scoped_connection& other) const {
@@ -133,7 +133,7 @@ namespace proto {
 		virtual ~receiver() {
 			for (connection conn : m_connections)
 				if (conn)
-					conn.disconnect();
+					conn.close();
 		}
 
 		size_t num_connections() const {
@@ -255,11 +255,11 @@ namespace proto {
 	private:
 		friend class detail::socket<Ret(Args...)>;
 
-		bool connected(uint64_t slot_id) const {
+		bool contains(uint64_t slot_id) const {
 			return m_slots.find(slot_id) != m_slots.end();
 		}
 
-		void disconnect(uint64_t slot_id) {
+		void remove(uint64_t slot_id) {
 			auto it = m_slots.find(slot_id);
 			assert(it != m_slots.end());
 			m_slots.erase(it);

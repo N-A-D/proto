@@ -47,7 +47,7 @@ TEST(SignalTests, SignalConnectionTests) {
 
 	// Tests disconnecting a connection
 	ASSERT_EQ(signal.size(), 2);
-	conn0.disconnect();
+	conn0.close();
 	ASSERT_FALSE(conn0); // Tests the disconnectedness of the connection
 	ASSERT_EQ(signal.size(), 1); // Test the signal's state after a disconnection
 
