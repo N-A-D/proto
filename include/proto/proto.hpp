@@ -253,14 +253,6 @@ namespace proto {
 			m_slots.clear();
 		}
 
-		void swap(signal& other) {
-			if (this != &other) {
-				using std::swap;
-				swap(m_curr_slot_id, other.m_curr_slot_id);
-				swap(m_slots, other.m_slots);
-			}
-		}
-
 	private:
 		friend class detail::socket<Ret(Args...)>;
 
