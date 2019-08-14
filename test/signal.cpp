@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "../include/proto/proto.hpp"
+#include <proto/proto.hpp>
 
 struct DummyReceiver0 : proto::receiver {
 	void function0(bool x) { ASSERT_TRUE(x); }
