@@ -16,6 +16,9 @@ without having to configure anything.
 - Dependency free, single-header C++17 signals and slots library
 - Learned about the [Observer pattern](https://en.wikipedia.org/wiki/Observer_pattern)
 
+### TODO
+Multithreading suppoort
+
 ### Usage
 
 #### Connections
