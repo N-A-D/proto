@@ -15,3 +15,86 @@ without having to configure anything.
 ### Summary
 - Single-header C++17 signals and slots library
 - Learned about the [Observer pattern](https://en.wikipedia.org/wiki/Observer_pattern)
+
+### TODO
+Return value collection.
+
+### Usage
+
+#### Connections
+A `proto::signal` can connect any free function or lambda that matches its
+invocation parameters.
+```cpp
+    void function() {
+        std::cout << "Hello from free function!" << std::endl;    
+    }
+
+    // A signal that accepts functions with void return value
+    // and an empty parameter list.
+    proto::signal<void()> signal;
+
+    // Connects a lambda to the signal.
+    proto::connection conn0 = signal.connect([](){});
+
+    // Connects a free function to the signal.
+    proto::connection conn1 = signal.connect(function);
+
+    signal();
+```
+
+Whenever a free function or lambda is connected to a signal, the signal returns
+an instance of `proto::connection`, which represents the *connection* between
+the signal and the slot (connected function). A function is disconnected from a signal
+by invoking the returned `proto::connection`'s `proto::connection::close` member 
+function.
+
+Signals are also capable of connecting both const and non-const member functions. 
+However, before a class instance connects one of its member functions to a signal, 
+the class must itself must inherit from `proto::receiver`. The purpose of 
+`proto::receiver` is to provide automatic management of signal connections. Any
+derived class of `proto::receiver` is given access to the `proto::receiver::num_connections`
+member function to query how many signal connections it has.
+
+```cpp
+    struct some_receiver : public proto::receiver {
+        void function0() {
+            std::cout << "Hello from non-const member function!" << std::endl;
+        }
+
+        void function1() const {
+            std::cout << "Hello from const member function!" << std::endl;
+        }
+    };
+
+    proto::signal<void()> signal;
+
+    some_reciver receiver;
+
+    signal.connect(&receiver, &some_receiver::function0);
+    signal.connect(&receiver, &some_receiver::function1);
+    receiver.num_connections(); // Returns 2
+
+    signal();
+```
+
+#### Scoped connections
+
+A `proto::scoped_connection` is just like a `proto::connection` except that it
+closes the connection between slot and signal when it goes out of scope. This is useful
+whenever you have to connect function(s) infrequently.
+
+```cpp
+    void some_rarely_invoked_function() {
+        // logic...
+    }
+
+    proto::signal<void()> signal;
+    if (some_rare_condition)
+    {
+        proto::scoped_connection = signal.connect(some_rarely_invoked_function);
+        signal();
+    }
+```
+
+#### Collectors
+TODO
