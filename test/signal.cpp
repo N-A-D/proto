@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <proto/proto.hpp>
+#include <numeric>
 
 struct DummyReceiver0 : proto::receiver {
 	void function0(bool x) { ASSERT_TRUE(x); }
@@ -183,6 +184,56 @@ TEST(SignalTests, SignalEmissionTests) {
 
 	signal1(false);
 
+}
+
+TEST(SignalTests, SignalOutputCollectionTests) {
+
+	struct inner_receiver : public proto::receiver {
+		int one() {
+			return 1;
+		}
+		int two() {
+			return 2;
+		}
+		int three() {
+			return 3;
+		}
+	};
+
+	struct inner_receiver2 : public proto::receiver {
+		int func0(int x) {
+			return x;
+		}
+		int func1(int x) {
+			return x;
+		}
+		int func2(int x) {
+			return x;
+		}
+	};
+
+	proto::signal<int()> signal;
+	inner_receiver receiver;
+
+	signal.connect(&receiver, &inner_receiver::one);
+	signal.connect(&receiver, &inner_receiver::two);
+	signal.connect(&receiver, &inner_receiver::three);
+
+	std::vector<int> values;
+	signal.collect(std::back_inserter(values));
+
+	ASSERT_EQ(std::accumulate(values.begin(), values.end(), 0), 6);
+
+	proto::signal<int(int)> signal2;
+	inner_receiver2 receiver2;
+
+	signal2.connect(&receiver2, &inner_receiver2::func0);
+	signal2.connect(&receiver2, &inner_receiver2::func1);
+	signal2.connect(&receiver2, &inner_receiver2::func2);
+
+	values.clear();
+	signal2.collect(std::back_inserter(values), 1);
+	ASSERT_EQ(std::accumulate(values.begin(), values.end(), 0), 3);
 }
 
 TEST(SignalTests, ConnectionConstructionTests) {

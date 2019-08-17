@@ -16,9 +16,6 @@ without having to configure anything.
 - Dependency free, single-header C++17 signals and slots library
 - Learned about the [Observer pattern](https://en.wikipedia.org/wiki/Observer_pattern)
 
-### TODO
-Return value collection.
-
 ### Usage
 
 #### Connections
@@ -96,5 +93,34 @@ whenever you have to connect function(s) infrequently.
     }
 ```
 
-#### Collectors
-TODO
+#### Return value collection
+
+Clients the require the output of slots can *collect* them from a signal by invoking the
+`proto::signal::collect` member function. The function requires an output iterator to
+a container. Moreover, the function raises a static assertion error the slot return value
+is void.
+
+```cpp
+    int function0() {
+        return std::rand();
+    }
+    
+    int function1() {
+        return std::rand();
+    }
+
+    int function2() {
+        return std::rand();
+    }
+    
+    proto::signal<int()> signal;
+    
+    // Output container
+    std::vector<int> values;
+    
+    // Slot return values are 'collected' into the container
+    signal.collect(std::back_inserter(values));
+
+    std::cout << *std::max_element(values.begin(), values.end()) << std::endl;
+
+```

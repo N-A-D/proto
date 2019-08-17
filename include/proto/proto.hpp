@@ -144,6 +144,20 @@ namespace proto {
 		std::vector<connection> m_conns;
 	};
 
+	namespace detail {
+
+		template <class It, class = std::void_t<>>
+		struct is_iterator : std::false_type {};
+
+		template <class It>
+		struct is_iterator<It, std::void_t<typename std::iterator_traits<It>::iterator_category>>
+			: std::true_type {};
+
+		template <class It>
+		constexpr bool is_iterator_v = is_iterator<It>::value;
+
+	}
+
 	template <class Ret, class... Args>
 	class signal<Ret(Args...)> final {
 		using socket_type = detail::socket<Ret(Args...)>;
@@ -176,14 +190,14 @@ namespace proto {
 			return *this;
 		}
 
-		// connects a non-const member function to the signal
+		// connects a free-function or lambda function
 		connection connect(slot_type slot) {
 			uint64_t slot_id = m_next_slot_id++;
 			m_slots.emplace(slot_id, slot);
 			return connection(slot_id, m_shared_socket);
 		}
 
-		// connects a const member function to the signal
+		// connects a non-const member function to the signal
 		template <class T>
 		void connect(T* obj, Ret(T::*func)(Args...)) {
 			static_assert(std::is_base_of_v<receiver, T>);
@@ -197,6 +211,7 @@ namespace proto {
 			static_cast<receiver*>(obj)->append(std::move(conn));
 		}
 
+		// connects a const member function
 		template <class T>
 		void connect(T* obj, Ret(T::*func)(Args...) const) {
 			static_assert(std::is_base_of_v<receiver, T>);
@@ -208,6 +223,18 @@ namespace proto {
 
 			// append it to the receiver's list of slots
 			static_cast<receiver*>(obj)->append(std::move(conn));
+		}
+
+		// invokes each connected slot and outputs its return value
+		// into the collection given by dest
+		template <class OutIt>
+		std::enable_if_t<detail::is_iterator_v<OutIt>> 
+		collect(OutIt dest, Args... args) {
+			using value_type = typename std::iterator_traits<OutIt>::value_type;
+			static_assert(!std::is_same_v<Ret, void>, "Cannot collect from void returning callbacks.");
+
+			for (auto&[_, slot] : m_slots)
+				*dest++ = slot(args...);
 		}
 
 		// invokes each slot attached to *this
