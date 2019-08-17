@@ -14,45 +14,52 @@ namespace proto {
 	class signal;
 
 	namespace detail {
+		
 		struct socket_base {
 			virtual ~socket_base() = default;
-			virtual bool valid() const = 0;
-			virtual void close() const = 0;
+			virtual bool connected(uint64_t) const = 0;
+			virtual void disconnect(uint64_t) const = 0;
 		};
+
 
 		template <class Callable>
 		class socket final : public socket_base {
 		public:
-			socket(uint64_t slot_id, signal<Callable>* signal)
-				: m_slot_id(slot_id)
-				, m_signal(signal) {}
+			socket(signal<Callable>* signal)
+				: m_signal(signal) {}
 
-			bool valid() const override {
-				return m_signal && m_signal->contains(m_slot_id);
+			bool connected(uint64_t slot_id) const override {
+				return m_signal && m_signal->connected(slot_id);
 			}
 
-			void close() const override {
-				assert(valid());
-				m_signal->remove(m_slot_id);
+			void disconnect(uint64_t slot_id) const override {
+				assert(connected(slot_id));
+				m_signal->disconnect(slot_id);
 			}
 
 		private:
-			uint64_t m_slot_id;
+			friend class signal<Callable>;
+
 			signal<Callable>* m_signal;
 		};
 	}
 
 	class connection final {
 	public:
-		connection() = default;
 
-		explicit connection(const std::weak_ptr<detail::socket_base>& socket)
-			: m_socket(socket) {}
+		connection() noexcept
+			: m_slot_id(0)
+			, m_socket() {}
 
-		connection(const connection&) = default;
+		connection(uint64_t slot_id, const std::weak_ptr<detail::socket_base>& socket) noexcept
+			: m_slot_id(slot_id)
+			, m_socket(socket) {}
+
+		// connections are not copy constructible or copy assignable
+		connection(const connection&) = delete;
+		connection& operator=(const connection&) = delete;
+
 		connection(connection&&) = default;
-
-		connection& operator=(const connection&) = default;
 		connection& operator=(connection&&) = default;
 
 		operator bool() const {
@@ -61,48 +68,38 @@ namespace proto {
 
 		bool valid() const {
 			std::shared_ptr<detail::socket_base> socket(m_socket.lock());
-			return socket && socket->valid();
+			return socket && socket->connected(m_slot_id);
 		}
 
-		void close() const {
+		void close() {
 			std::shared_ptr<detail::socket_base> socket(m_socket.lock());
-			if (socket)
-				socket->close();
-		}
-
-		bool operator==(const connection& other) const {
-			std::shared_ptr<detail::socket_base> socket(m_socket.lock());
-			std::shared_ptr<detail::socket_base> other_socket(other.m_socket.lock());
-			return socket == other_socket;
-		}
-
-		bool operator!=(const connection& other) const {
-			return !(*this == other);
+			if (socket) {
+				socket->disconnect(m_slot_id);
+				m_socket.reset();
+			}
 		}
 
 	private:
+		uint64_t m_slot_id;
 		std::weak_ptr<detail::socket_base> m_socket;
 	};
 
 	class scoped_connection final {
 	public:
-		scoped_connection() = default;
 
-		scoped_connection(const connection& conn)
-			: m_conn(conn) {}
+		scoped_connection() = default;
 
 		scoped_connection(connection&& conn)
 			: m_conn(std::move(conn)) {}
 
-		scoped_connection(const scoped_connection&) = default;
-		scoped_connection(scoped_connection&&) = default;
+		// scoped onnections are not copy constructible or copyy assignable
+		scoped_connection(const scoped_connection&) = delete;
+		scoped_connection& operator=(const scoped_connection&) = delete;
 
-		scoped_connection& operator=(const scoped_connection&) = default;
+		scoped_connection(scoped_connection&&) = default;
 		scoped_connection& operator=(scoped_connection&&) = default;
 
-		~scoped_connection() {
-			close();
-		}
+		~scoped_connection() { close(); }
 
 		operator bool() const {
 			return valid();
@@ -112,16 +109,8 @@ namespace proto {
 			return m_conn.valid();
 		}
 
-		void close() const {
+		void close() {
 			m_conn.close();
-		}
-
-		bool operator==(const scoped_connection& other) const {
-			return m_conn == other.m_conn;
-		}
-
-		bool operator!=(const scoped_connection& other) const {
-			return !(*this == other);
 		}
 
 	private:
@@ -131,88 +120,72 @@ namespace proto {
 	class receiver {
 	public:
 		virtual ~receiver() {
-			for (connection conn : m_connections)
+			for (connection& conn : m_conns)
 				if (conn)
 					conn.close();
 		}
 
 		size_t num_connections() const {
 			size_t count = 0;
-			for (connection conn : m_connections)
+			for (const connection& conn : m_conns)
 				if (conn)
 					++count;
 			return count;
 		}
 
 	private:
-
 		template <typename>
 		friend class signal;
 
-		void append(const connection& conn) {
-			m_connections.emplace_back(conn);
+		void append(connection&& conn) {
+			m_conns.emplace_back(std::move(conn));
 		}
 
-		std::vector<connection> m_connections;
+		std::vector<connection> m_conns;
 	};
 
-	namespace detail {
-		template <class Callable>
-		struct slot;
-
-		template <class Ret, class... Args>
-		struct slot<Ret(Args...)> final {
-			Ret operator()(Args... args) const {
-				return m_callback(std::forward<Args>(args)...);
-			}
-			std::function<Ret(Args...)> m_callback;
-			std::shared_ptr<socket_base> m_socket;
-		};
-
-		class noncopyable {
-		public:
-			noncopyable(const noncopyable&) = delete;
-			noncopyable& operator=(const noncopyable&) = delete;
-		protected:
-			noncopyable() = default;
-			~noncopyable() = default;
-		};
-	}
-
 	template <class Ret, class... Args>
-	class signal<Ret(Args...)> final : public detail::noncopyable {
+	class signal<Ret(Args...)> final {
+		using socket_type = detail::socket<Ret(Args...)>;
+		friend class socket_type;
 	public:
-		signal() noexcept
-			: m_curr_slot_id(0)
-			, m_slots() {}
 
-		// connects a generic free function to the signal
-		connection connect(std::function<Ret(Args...)> callback) {
-			using std::make_shared;
-			uint64_t slot_id = m_curr_slot_id++;
-			auto socket(make_shared<detail::socket<Ret(Args...)>>(slot_id, this));
-			m_slots.emplace(slot_id, detail::slot<Ret(Args...)>{ callback, socket });
-			return connection(socket);
+		using slot_type = std::function<Ret(Args...)>;
+
+		signal()
+			: m_next_slot_id(0)
+			, m_slots()
+			, m_shared_socket(std::make_shared<socket_type>(this)) 
+		{}
+		
+		signal(signal&& other)
+			: m_next_slot_id(other.m_next_slot_id)
+			, m_slots(std::move(other.m_slots))
+			, m_shared_socket(std::move(other.m_shared_socket))
+		{
+			rebind_socket();
+		}
+
+		signal& operator=(signal&& other) {
+			if (this != std::addressof(other)) {
+				m_next_slot_id = other.m_next_slot_id;
+				m_slots = std::move(other.m_slots);
+				m_shared_socket = std::move(other.m_shared_socket);
+				rebind_socket();
+			}
+			return *this;
 		}
 
 		// connects a non-const member function to the signal
-		template <class T>
-		connection connect(T* obj, Ret(T::*func)(Args...)) {
-			static_assert(std::is_base_of_v<receiver, T>);
-
-			// construct the slot connection
-			connection conn = connect([obj, func](Args... args) {
-				return (obj->*func)(args...);
-			});
-
-			// append it to the receiver's list of slots
-			static_cast<receiver*>(obj)->append(conn);
-			return conn;
+		connection connect(slot_type slot) {
+			uint64_t slot_id = m_next_slot_id++;
+			m_slots.emplace(slot_id, slot);
+			return connection(slot_id, m_shared_socket);
 		}
 
 		// connects a const member function to the signal
 		template <class T>
-		connection connect(T* obj, Ret(T::*func)(Args...) const) {
+		void connect(T* obj, Ret(T::*func)(Args...)) {
 			static_assert(std::is_base_of_v<receiver, T>);
 
 			// construct the slot connection
@@ -221,19 +194,36 @@ namespace proto {
 			});
 
 			// append it to the receiver's list of slots
-			static_cast<receiver*>(obj)->append(conn);
-			return conn;
+			static_cast<receiver*>(obj)->append(std::move(conn));
+		}
+
+		template <class T>
+		void connect(T* obj, Ret(T::*func)(Args...) const) {
+			static_assert(std::is_base_of_v<receiver, T>);
+
+			// construct the slot connection
+			connection conn = connect([obj, func](Args... args) {
+				return (obj->*func)(args...);
+			});
+
+			// append it to the receiver's list of slots
+			static_cast<receiver*>(obj)->append(std::move(conn));
 		}
 
 		// invokes each slot attached to *this
-		void operator()(Args&&... args) {
-			emit(std::forward<Args>(args)...);
+		void operator()(Args... args) {
+			emit(args...);
 		}
 
 		// invokes each slot attached to *this
-		void emit(Args&&... args) {
+		void emit(Args... args) {
 			for (auto&[_, slot] : m_slots)
-				slot(std::forward<Args>(args)...);
+				slot(args...);
+		}
+
+		// checks if *this contains any slot
+		bool empty() const noexcept {
+			return m_slots.empty();
 		}
 
 		// returns the number of slots attached to *this
@@ -241,32 +231,46 @@ namespace proto {
 			return m_slots.size();
 		}
 
-		// checks if *this contains any slots
-		bool empty() const noexcept {
-			return m_slots.empty();
-		}
-
-		// disconnects all  slots
+		// disconnects all slots
 		void clear() noexcept {
-			m_curr_slot_id = 0;
+			m_next_slot_id = 0;
 			m_slots.clear();
 		}
 
-	private:
-		friend class detail::socket<Ret(Args...)>;
+		void swap(signal& other) {
+			if (this != std::addressof(other)) {
+				using std::swap;
+				swap(m_next_slot_id, other.m_next_slot_id);
+				swap(m_slots, other.m_slots);
+				swap(m_shared_socket, other.m_shared_socket);
+				rebind_socket();
+				other.rebind_socket();
+			}
+		}
 
-		bool contains(uint64_t slot_id) const {
+	private:
+		
+		signal(const signal&) = delete;
+		signal& operator=(const signal&) = delete;
+		
+		void rebind_socket() {
+			using std::static_pointer_cast;
+			static_pointer_cast<socket_type>(m_shared_socket)->m_signal = this;
+		}
+
+		bool connected(uint64_t slot_id) const {
 			return m_slots.find(slot_id) != m_slots.end();
 		}
 
-		void remove(uint64_t slot_id) {
+		void disconnect(uint64_t slot_id) {
 			auto it = m_slots.find(slot_id);
 			assert(it != m_slots.end());
 			m_slots.erase(it);
 		}
 
-		uint64_t m_curr_slot_id;
-		std::map<uint64_t, detail::slot<Ret(Args...)>> m_slots;
+		uint64_t m_next_slot_id;
+		std::map<uint64_t, slot_type> m_slots;
+		std::shared_ptr<detail::socket_base> m_shared_socket;
 	};
 
 }

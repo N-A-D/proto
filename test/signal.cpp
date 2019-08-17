@@ -11,77 +11,88 @@ struct DummyReceiver1 : proto::receiver {
 	void function1(bool x) const { ASSERT_FALSE(x); }
 };
 
-TEST(SignalTests, ConstructorTests) {
-
-	// Test empty constructor
+TEST(SignalTests, DefaultConstructorTests) {
 	proto::signal<void()> signal0;
 	proto::signal<void(int)> signal1;
 	proto::signal<void(int, int)> signal2;
 	proto::signal<int()> signal3;
 	proto::signal<int(int)> signal4;
 	proto::signal<int(int, int)> signal5;
-
 }
 
-TEST(SignalTests, SignalConnectionTests) {
-	DummyReceiver0 dummy0;
-	DummyReceiver1 dummy1;
-
-	proto::signal<void(bool)> signal;
-
-	// Test copy connection copy construction
-	proto::connection conn0 = signal.connect(&dummy0, &DummyReceiver0::function0);
-	proto::connection conn_copy(conn0);
-	
-	ASSERT_TRUE(conn0); // Test connectedness of the connection
-	ASSERT_TRUE(conn_copy); // Test the connectedness of the the copy connection
-	ASSERT_EQ(conn0, conn_copy); // Test connection equivalence
-	proto::connection conn_move(std::move(conn_copy)); // Test move construction
-	ASSERT_TRUE(conn_move); // Validate connectedness of the thief
-	ASSERT_FALSE(conn_copy); // Validated the unconnectedness of the victim
-	ASSERT_EQ(conn0, conn_move); // Validate the equivalence between connections
-
-	proto::connection conn1 = signal.connect(&dummy1, &DummyReceiver1::function0);
+TEST(SignalTests, MoveConstructorTests) {
+	proto::signal<void()> signal;
+	proto::connection conn0 = signal.connect([]() {});
+	proto::connection conn1 = signal.connect([]() {});
+	ASSERT_TRUE(conn0);
 	ASSERT_TRUE(conn1);
-	ASSERT_NE(conn1, conn0); // Test inequality between two difference connections
-
-	// Tests disconnecting a connection
 	ASSERT_EQ(signal.size(), 2);
-	conn0.close();
-	ASSERT_FALSE(conn0); // Tests the disconnectedness of the connection
-	ASSERT_EQ(signal.size(), 1); // Test the signal's state after a disconnection
-
-	// Tests the connectedness of a scoped connection, equivalence, inequality
 	{
-		proto::scoped_connection scoped_conn = signal.connect(&dummy1, &DummyReceiver1::function1);
-		proto::scoped_connection scoped_conn_copy(scoped_conn);
-		ASSERT_TRUE(scoped_conn); // Test connectedness of a scoped connection
-		ASSERT_TRUE(scoped_conn_copy); // Test connectedness of a scoped connection copy
-		ASSERT_EQ(scoped_conn, scoped_conn_copy); // Test equivalence between two scoped connections
-		proto::scoped_connection scoped_conn_move(std::move(scoped_conn_copy));
-		ASSERT_TRUE(scoped_conn_move); // Test connectedness of thief scoped connection
-		ASSERT_FALSE(scoped_conn_copy); // Test unconnectedness of of the victim
-		ASSERT_EQ(scoped_conn, scoped_conn_move); // Test equivalence between two scoped connections
-		ASSERT_EQ(signal.size(), 2);
+		proto::signal<void()> scoped_signal(std::move(signal));
+		ASSERT_TRUE(signal.empty());
+		ASSERT_EQ(scoped_signal.size(), 2);
 
-		proto::scoped_connection scoped_conn1 = signal.connect(&dummy0, &DummyReceiver0::function1);
-		ASSERT_TRUE(scoped_conn1); // Test connectedness of a scoped connection
-		ASSERT_NE(scoped_conn1, scoped_conn); // Test inequality between two scoped connections
-		ASSERT_EQ(signal.size(), 3);
+		// Existing connections to signal now belong to scoped_signal
+		ASSERT_TRUE(conn0);
+		ASSERT_TRUE(conn1);
 	}
-	ASSERT_EQ(signal.size(), 1);
+	// Scoped signal has been destroyed, the existing conns are now invalid
+	ASSERT_FALSE(conn0);
+	ASSERT_FALSE(conn1);
+
+	proto::signal<void()> signal2;
+	conn0 = signal2.connect([]() {});
+	conn1 = signal2.connect([]() {});
+	ASSERT_EQ(signal2.size(), 2);
+	ASSERT_TRUE(conn0);
+	ASSERT_TRUE(conn1);
+	
+	proto::signal<void()> signal3(std::move(signal2));
+	ASSERT_TRUE(signal2.empty());
+	ASSERT_EQ(signal3.size(), 2);
+	ASSERT_TRUE(conn0);
+	ASSERT_TRUE(conn1);
 }
+
+TEST(SignalTests, MoveAssignmentTests) {
+	proto::signal<void()> signal;
+	proto::connection conn0;
+	proto::connection conn1;
+	ASSERT_FALSE(conn0);
+	ASSERT_FALSE(conn1);
+	{
+		proto::signal<void()> scoped_signal;
+		conn0 = scoped_signal.connect([]() {});
+		conn1 = scoped_signal.connect([]() {});
+		ASSERT_TRUE(conn0);
+		ASSERT_TRUE(conn1);
+
+		signal = std::move(scoped_signal);
+		ASSERT_TRUE(scoped_signal.empty());
+		ASSERT_EQ(signal.size(), 2);
+		ASSERT_TRUE(conn0);
+		ASSERT_TRUE(conn1);
+	}
+	ASSERT_TRUE(conn0);
+	ASSERT_TRUE(conn1);
+
+	proto::signal<void()> signal2;
+	signal2 = std::move(signal);
+	ASSERT_TRUE(signal.empty());
+	ASSERT_EQ(signal2.size(), 2);
+	ASSERT_TRUE(conn0);
+	ASSERT_TRUE(conn1);
+}
+
 
 TEST(SignalTests, SignalClearTest) {
-	DummyReceiver0 dummy0;
-	DummyReceiver1 dummy1;
 	proto::signal<void(bool)> signal;
 	ASSERT_TRUE(signal.empty());
 
-	auto conn0 = signal.connect(&dummy0, &DummyReceiver0::function0);
-	auto conn1 = signal.connect(&dummy0, &DummyReceiver0::function1);
-	auto conn2 = signal.connect(&dummy1, &DummyReceiver1::function0);
-	auto conn3 = signal.connect(&dummy1, &DummyReceiver1::function1);
+	auto conn0 = signal.connect([](bool) {});
+	auto conn1 = signal.connect([](bool) {});
+	auto conn2 = signal.connect([](bool) {});
+	auto conn3 = signal.connect([](bool) {});
 	auto conn4 = signal.connect([](bool x) { ASSERT_TRUE(x); });
 
 	ASSERT_TRUE(conn0);
@@ -97,11 +108,51 @@ TEST(SignalTests, SignalClearTest) {
 
 	ASSERT_TRUE(signal.empty());
 
+	// By clearing the signal, all attached connections are made invalid
 	ASSERT_FALSE(conn0);
 	ASSERT_FALSE(conn1);
 	ASSERT_FALSE(conn2);
 	ASSERT_FALSE(conn3);
 	ASSERT_FALSE(conn4);
+}
+
+TEST(SignalTests, SignalSwapTests) {
+	proto::signal<void()> signal0;
+	proto::signal<void()> signal1;
+
+	proto::connection conn0x0 = signal0.connect([]() {});
+	proto::connection conn0x1 = signal0.connect([]() {});
+
+	proto::connection conn1x0 = signal1.connect([]() {});
+	proto::connection conn1x1 = signal1.connect([]() {});
+
+	ASSERT_EQ(signal0.size(), 2);
+	ASSERT_TRUE(conn0x0);
+	ASSERT_TRUE(conn0x1);
+
+	ASSERT_EQ(signal1.size(), 2);
+	ASSERT_TRUE(conn1x0);
+	ASSERT_TRUE(conn1x1);
+
+	signal0.swap(signal1);
+
+	ASSERT_EQ(signal0.size(), 2);
+	ASSERT_TRUE(conn0x0);
+	ASSERT_TRUE(conn0x1);
+
+	ASSERT_EQ(signal1.size(), 2);
+	ASSERT_TRUE(conn1x0);
+	ASSERT_TRUE(conn1x1);
+
+	conn1x0.close();
+	ASSERT_EQ(signal0.size(), 1);
+	conn1x1.close();
+	ASSERT_TRUE(signal0.empty());
+
+	conn0x0.close();
+	ASSERT_EQ(signal1.size(), 1);
+	conn0x1.close();
+	ASSERT_TRUE(signal1.empty());
 }
 
 TEST(SignalTests, SignalEmissionTests) {
@@ -118,7 +169,7 @@ TEST(SignalTests, SignalEmissionTests) {
 	ASSERT_EQ(signal0.size(), 3);
 
 	signal0(true);
-	
+
 	DummyReceiver1 dummy_receiver1;
 
 	proto::signal<void(bool)> signal1;
@@ -132,4 +183,67 @@ TEST(SignalTests, SignalEmissionTests) {
 
 	signal1(false);
 
+}
+
+TEST(SignalTests, ConnectionConstructionTests) {
+	proto::signal<void()> signal;
+	proto::connection conn = signal.connect([]() {});
+	ASSERT_TRUE(conn);
+	ASSERT_EQ(signal.size(), 1);
+}
+
+TEST(SignalTests, ConnectionDefaultConstructorTests) {
+	proto::connection conn;
+	ASSERT_FALSE(conn);
+}
+
+TEST(SignalTests, ConnectionMoveConstructorTests) {
+	proto::signal<void()> signal;
+	proto::connection conn = signal.connect([]() {});
+	proto::connection move(std::move(conn));
+	ASSERT_EQ(signal.size(), 1);
+	ASSERT_FALSE(conn);
+	ASSERT_TRUE(move);
+	ASSERT_EQ(signal.size(), 1);
+}
+
+TEST(SignalTests, ConnectionClosureTests) {
+	proto::signal<void()> signal;
+	proto::connection conn = signal.connect([]() {});
+	ASSERT_FALSE(signal.empty());
+	ASSERT_TRUE(conn);
+	conn.close();
+	ASSERT_FALSE(conn);
+	ASSERT_TRUE(signal.empty());
+}
+
+TEST(SignalTests, ScopedConnectionDefaultConstructorTests) {
+	proto::scoped_connection scoped_conn;
+	ASSERT_FALSE(scoped_conn);
+}
+
+TEST(SignalTests, ScopedConnectionMoveConstructorTests) {
+	proto::signal<void()> signal;
+	proto::scoped_connection scoped_conn = signal.connect([]() {});
+	ASSERT_EQ(signal.size(), 1);
+	ASSERT_TRUE(scoped_conn);
+	proto::scoped_connection move(std::move(scoped_conn));
+	ASSERT_EQ(signal.size(), 1);
+	ASSERT_FALSE(scoped_conn);
+	ASSERT_TRUE(move);
+}
+
+TEST(SignalTests, ScopedConnectionClosureTests) {
+	proto::signal<void()> signal;
+	proto::scoped_connection scoped_conn = signal.connect([]() {});
+	ASSERT_EQ(signal.size(), 1);
+	ASSERT_TRUE(scoped_conn);
+	scoped_conn.close();
+	ASSERT_TRUE(signal.empty());
+	ASSERT_FALSE(scoped_conn);
+	{
+		proto::scoped_connection conn = signal.connect([]() {});
+		ASSERT_EQ(signal.size(), 1);
+	}
+	ASSERT_TRUE(signal.empty());
 }
