@@ -98,7 +98,7 @@ whenever you have to connect function(s) infrequently.
 
 #### Return value collection
 
-Clients the require the output of slots can *collect* them from a signal by invoking the
+Clients that require the output of slots can *collect* them from a signal by invoking the
 `proto::signal::collect` member function. The function requires an output iterator to
 a container. Moreover, the function raises a static assertion error if the slot return 
 value is void.
