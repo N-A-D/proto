@@ -117,7 +117,10 @@ value is void.
     }
     
     proto::signal<int()> signal;
-    
+    signal.connect(function0);   
+    signal.connect(function1);   
+    signal.connect(function2);   
+
     // Output container
     std::vector<int> values;
     
