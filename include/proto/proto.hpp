@@ -5,6 +5,7 @@
 #include <memory>
 #include <cstdint>
 #include <cassert>
+#include <algorithm>
 #include <functional>
 #include <type_traits>
 
@@ -125,11 +126,8 @@ namespace proto {
 		}
 
 		size_t num_connections() const {
-			size_t count = 0;
-			for (const connection& conn : m_conns)
-				if (conn)
-					++count;
-			return count;
+			return std::count_if(m_conns.begin(), m_conns.end(), 
+				[](const connection& conn) { return conn.valid(); });
 		}
 
 	private:
