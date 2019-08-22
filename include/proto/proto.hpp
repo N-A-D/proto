@@ -154,6 +154,14 @@ namespace proto {
 
 	class receiver {
 	public:
+		receiver() = default;
+
+		receiver(const receiver&) = delete;
+		receiver& operator=(const receiver&) = delete;
+
+		receiver(receiver&&) = delete;
+		receiver& operator=(receiver&&) = delete;
+
 		virtual ~receiver() {
 			for (connection& conn : m_conns)
 				if (conn)
