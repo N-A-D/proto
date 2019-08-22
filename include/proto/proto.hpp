@@ -230,8 +230,8 @@ namespace proto {
 		template <class OutIt>
 		std::enable_if_t<detail::is_iterator_v<OutIt>> 
 		collect(OutIt dest, Args... args) {
-			using value_type = typename std::iterator_traits<OutIt>::value_type;
-			static_assert(!std::is_same_v<Ret, void>, "Cannot collect from void returning callbacks.");
+			static_assert(!std::is_same_v<Ret, void>, 
+				"Cannot collect from void returning callbacks.");
 
 			for (auto&[_, slot] : m_slots)
 				*dest++ = slot(args...);
