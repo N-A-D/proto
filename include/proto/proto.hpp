@@ -73,10 +73,9 @@ namespace proto {
 
 		void close() {
 			std::shared_ptr<detail::socket_base> socket(m_socket.lock());
-			if (socket) {
+			if (socket && socket->connected(m_slot_id))
 				socket->disconnect(m_slot_id);
-				m_socket.reset();
-			}
+			m_socket.reset();
 		}
 
 	private:

@@ -90,20 +90,26 @@ TEST(SignalTests, SignalClearTest) {
 	proto::signal<void(bool)> signal;
 	ASSERT_TRUE(signal.empty());
 
-	auto conn0 = signal.connect([](bool) {});
-	auto conn1 = signal.connect([](bool) {});
-	auto conn2 = signal.connect([](bool) {});
-	auto conn3 = signal.connect([](bool) {});
-	auto conn4 = signal.connect([](bool x) { ASSERT_TRUE(x); });
+	proto::connection conn0 = signal.connect([](bool) {});
+	proto::connection conn1 = signal.connect([](bool) {});
+	proto::connection conn2 = signal.connect([](bool) {});
+	proto::connection conn3 = signal.connect([](bool) {});
+	proto::scoped_connection conn4 = signal.connect([](bool) {});
+	proto::scoped_connection conn5 = signal.connect([](bool) {});
+	proto::scoped_connection conn6 = signal.connect([](bool) {});
+	proto::scoped_connection conn7 = signal.connect([](bool) {});
 
 	ASSERT_TRUE(conn0);
 	ASSERT_TRUE(conn1);
 	ASSERT_TRUE(conn2);
 	ASSERT_TRUE(conn3);
 	ASSERT_TRUE(conn4);
+	ASSERT_TRUE(conn5);
+	ASSERT_TRUE(conn6);
+	ASSERT_TRUE(conn7);
 
 	ASSERT_FALSE(signal.empty());
-	ASSERT_EQ(signal.size(), 5);
+	ASSERT_EQ(signal.size(), 8);
 
 	signal.clear();
 
@@ -115,6 +121,9 @@ TEST(SignalTests, SignalClearTest) {
 	ASSERT_FALSE(conn2);
 	ASSERT_FALSE(conn3);
 	ASSERT_FALSE(conn4);
+	ASSERT_FALSE(conn5);
+	ASSERT_FALSE(conn6);
+	ASSERT_FALSE(conn7);
 }
 
 TEST(SignalTests, SignalSwapTests) {
