@@ -77,6 +77,8 @@ member function to query how many signal connections it has.
     signal();
 ```
 
+**NOTE** Any class deriving from `proto::receiver` becomes non copyable and non movable.
+
 #### Scoped connections
 
 A `proto::scoped_connection` is just like a `proto::connection` except that it
