@@ -22,12 +22,18 @@ Multithreading suppoort
 ### Usage
 
 #### Connections
-A `proto::signal` can connect any free function or lambda that matches its
-invocation parameters.
+A `proto::signal` can connect any free function, lambda, or static
+member function that matches its template signature.
 ```cpp
     void function() {
         std::cout << "Hello from free function!" << std::endl;    
     }
+
+    struct SomeClass {
+        static void static_func() {
+            std::cout << "Hello from static member function" << std::endl;
+        }
+    };
 
     // A signal that accepts functions with void return value
     // and an empty parameter list.
@@ -35,10 +41,13 @@ invocation parameters.
 
     // Connects a lambda to the signal.
     proto::connection conn0 = signal.connect([](){});
+    
+    // Connects a static member function to the signal
+    proto::connection conn1 = signal.connect(&SomeClass::static_func);
 
     // Connects a free function to the signal.
-    proto::connection conn1 = signal.connect(function);
-
+    proto::connection conn2 = signal.connect(function);
+    
     signal();
 ```
 
