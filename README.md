@@ -59,7 +59,7 @@ function.
 
 Signals are also capable of connecting both const and non-const member functions. 
 However, before a class instance connects its member function(s) to a signal, 
-it must first inherit from `proto::receiver`. The purpose of 
+the class itself must inherit from `proto::receiver`. The purpose of 
 `proto::receiver` is to provide automatic management of signal connections. Any
 derived class of `proto::receiver` is given access to the `proto::receiver::num_connections`
 member function to query how many signal connections it has.
