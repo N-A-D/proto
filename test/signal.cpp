@@ -207,6 +207,11 @@ TEST(SignalTests, SignalOutputCollectionTests) {
 		int three() {
 			return 3;
 		}
+
+		static constexpr int four() noexcept {
+			return 4;
+		}
+
 	};
 
 	struct inner_receiver2 : public proto::receiver {
@@ -227,11 +232,12 @@ TEST(SignalTests, SignalOutputCollectionTests) {
 	signal.connect(&receiver, &inner_receiver::one);
 	signal.connect(&receiver, &inner_receiver::two);
 	signal.connect(&receiver, &inner_receiver::three);
+	signal.connect(&inner_receiver::four);
 
 	std::vector<int> values;
 	signal.collect(std::back_inserter(values));
 
-	ASSERT_EQ(std::accumulate(values.begin(), values.end(), 0), 6);
+	ASSERT_EQ(std::accumulate(values.begin(), values.end(), 0), 10);
 
 	proto::signal<int(int)> signal2;
 	inner_receiver2 receiver2;
