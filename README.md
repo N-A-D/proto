@@ -17,6 +17,19 @@ without having to configure anything.
 - Learned about the [Observer pattern](https://en.wikipedia.org/wiki/Observer_pattern)
 - Learned about the [Proxy pattern](https://en.wikipedia.org/wiki/Proxy_pattern) (internal implementation)
 
+### Installation
+`proto` is a single header file and can be copied and included into your project directly.
+Another option would be to use git submodules and CMake.   
+Add the project as a git submodule as follows:
+```bash
+git submodule add https://github.com/N-A-D/proto.git extern/proto
+```   
+In your project's root CMakeLists.txt file do:
+```CMake
+add_subdirectory(extern/proto)
+target_link_libraries(${PROJECT_NAME} proto)
+```
+
 ### TODO
 Multithreading suppoort
 
