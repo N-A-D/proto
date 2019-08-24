@@ -15,6 +15,7 @@ without having to configure anything.
 ### Summary
 - Dependency free, single-header C++17 signals and slots library
 - Learned about the [Observer pattern](https://en.wikipedia.org/wiki/Observer_pattern)
+- Learned about the [Mediator pattern](https://en.wikipedia.org/wiki/Mediator_pattern) (internal implementation)
 
 ### TODO
 Multithreading suppoort
