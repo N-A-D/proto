@@ -51,17 +51,17 @@ namespace proto {
 
 	namespace detail {
 		
-		struct socket_base {
-			virtual ~socket_base() = default;
+		struct signal_proxy_base {
+			virtual ~signal_proxy_base() = default;
 			virtual bool connected(uint64_t) const = 0;
 			virtual void disconnect(uint64_t) const = 0;
 		};
 
 
 		template <class Callable>
-		class socket final : public socket_base {
+		class signal_proxy final : public signal_proxy_base {
 		public:
-			socket(signal<Callable>* signal)
+			signal_proxy(signal<Callable>* signal)
 				: m_signal(signal) {}
 
 			bool connected(uint64_t slot_id) const override {
@@ -85,11 +85,11 @@ namespace proto {
 
 		connection() noexcept
 			: m_slot_id(0)
-			, m_socket() {}
+			, m_signal_proxy() {}
 
-		connection(uint64_t slot_id, const std::weak_ptr<detail::socket_base>& socket) noexcept
+		connection(uint64_t slot_id, const std::weak_ptr<detail::signal_proxy_base>& signal_proxy) noexcept
 			: m_slot_id(slot_id)
-			, m_socket(socket) {}
+			, m_signal_proxy(signal_proxy) {}
 
 		// connections are not copy constructible or copy assignable
 		connection(const connection&) = delete;
@@ -103,20 +103,20 @@ namespace proto {
 		}
 
 		bool valid() const {
-			std::shared_ptr<detail::socket_base> socket(m_socket.lock());
-			return socket && socket->connected(m_slot_id);
+			std::shared_ptr<detail::signal_proxy_base> signal_proxy(m_signal_proxy.lock());
+			return signal_proxy && signal_proxy->connected(m_slot_id);
 		}
 
 		void close() {
-			std::shared_ptr<detail::socket_base> socket(m_socket.lock());
-			if (socket && socket->connected(m_slot_id))
-				socket->disconnect(m_slot_id);
-			m_socket.reset();
+			std::shared_ptr<detail::signal_proxy_base> signal_proxy(m_signal_proxy.lock());
+			if (signal_proxy && signal_proxy->connected(m_slot_id))
+				signal_proxy->disconnect(m_slot_id);
+			m_signal_proxy.reset();
 		}
 
 	private:
 		uint64_t m_slot_id;
-		std::weak_ptr<detail::socket_base> m_socket;
+		std::weak_ptr<detail::signal_proxy_base> m_signal_proxy;
 	};
 
 	class scoped_connection final {
@@ -200,8 +200,8 @@ namespace proto {
 
 	template <class Ret, class... Args>
 	class signal<Ret(Args...)> final {
-		using socket_type = detail::socket<Ret(Args...)>;
-		friend class socket_type;
+		using signal_proxy_type = detail::signal_proxy<Ret(Args...)>;
+		friend class signal_proxy_type;
 	public:
 
 		using slot_type = std::function<Ret(Args...)>;
@@ -209,23 +209,23 @@ namespace proto {
 		signal()
 			: m_next_slot_id(0)
 			, m_slots()
-			, m_shared_socket(std::make_shared<socket_type>(this)) 
+			, m_signal_proxy(std::make_shared<signal_proxy_type>(this)) 
 		{}
 		
 		signal(signal&& other)
 			: m_next_slot_id(other.m_next_slot_id)
 			, m_slots(std::move(other.m_slots))
-			, m_shared_socket(std::move(other.m_shared_socket))
+			, m_signal_proxy(std::move(other.m_signal_proxy))
 		{
-			rebind_socket();
+			rebind_signal_proxy();
 		}
 
 		signal& operator=(signal&& other) {
 			if (this != std::addressof(other)) {
 				m_next_slot_id = other.m_next_slot_id;
 				m_slots = std::move(other.m_slots);
-				m_shared_socket = std::move(other.m_shared_socket);
-				rebind_socket();
+				m_signal_proxy = std::move(other.m_signal_proxy);
+				rebind_signal_proxy();
 			}
 			return *this;
 		}
@@ -234,7 +234,7 @@ namespace proto {
 		connection connect(slot_type slot) {
 			uint64_t slot_id = m_next_slot_id++;
 			m_slots.emplace(slot_id, slot);
-			return connection(slot_id, m_shared_socket);
+			return connection(slot_id, m_signal_proxy);
 		}
 
 		// connects a non-const member function to the signal
@@ -309,9 +309,9 @@ namespace proto {
 				using std::swap;
 				swap(m_next_slot_id, other.m_next_slot_id);
 				swap(m_slots, other.m_slots);
-				swap(m_shared_socket, other.m_shared_socket);
-				rebind_socket();
-				other.rebind_socket();
+				swap(m_signal_proxy, other.m_signal_proxy);
+				rebind_signal_proxy();
+				other.rebind_signal_proxy();
 			}
 		}
 
@@ -320,9 +320,9 @@ namespace proto {
 		signal(const signal&) = delete;
 		signal& operator=(const signal&) = delete;
 		
-		void rebind_socket() {
+		void rebind_signal_proxy() {
 			using std::static_pointer_cast;
-			static_pointer_cast<socket_type>(m_shared_socket)->m_signal = this;
+			static_pointer_cast<signal_proxy_type>(m_signal_proxy)->m_signal = this;
 		}
 
 		bool connected(uint64_t slot_id) const {
@@ -337,7 +337,7 @@ namespace proto {
 
 		uint64_t m_next_slot_id;
 		std::map<uint64_t, slot_type> m_slots;
-		std::shared_ptr<detail::socket_base> m_shared_socket;
+		std::shared_ptr<detail::signal_proxy_base> m_signal_proxy;
 	};
 
 }
