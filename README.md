@@ -26,7 +26,7 @@ git submodule add https://github.com/N-A-D/proto.git extern/proto
 ```   
 In your project's root CMakeLists.txt file do:
 ```CMake
-add_subdirectory(extern/proto)
+add_subdirectory("${PROJECT_SOURCE_DIR}/extern/proto" "extern/proto")
 target_link_libraries(${PROJECT_NAME} proto)
 ```
 
